@@ -131,6 +131,7 @@ defmodule Contentful.Delivery do
 
   @endpoint "cdn.contentful.com"
   @preview_endpoint "preview.contentful.com"
+  @management_endpoint "api.contentful.com"
   @protocol "https"
   @separator "/"
 
@@ -296,6 +297,7 @@ defmodule Contentful.Delivery do
     case Configuration.get(:endpoint) do
       nil -> @endpoint
       :preview -> @preview_endpoint
+      :management -> @management_endpoint
       value -> value
     end
   end

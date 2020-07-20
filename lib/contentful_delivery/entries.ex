@@ -78,15 +78,29 @@ defmodule Contentful.Delivery.Entries do
   @doc """
   specifies the collection resolver for the case when assets are included within the entries response
   """
-  def resolve_collection_response(%{
-        "total" => total,
-        "items" => items,
-        "includes" => %{"Asset" => assets}
-      }) do
+  def resolve_collection_response(
+        %{
+          "total" => total,
+          "items" => items,
+          "includes" => %{
+            "Asset" => assets
+          }
+        }
+      ) do
     {:ok, entries, total: total} =
       resolve_collection_response(%{"total" => total, "items" => items})
 
-    {:ok, entries |> Enum.map(fn entry -> entry |> resolve_assets(assets) end), total: total}
+    {
+      :ok,
+      entries
+      |> Enum.map(
+           fn entry ->
+             entry
+             |> resolve_assets(assets)
+           end
+         ),
+      total: total
+    }
   end
 
   @doc """
@@ -109,41 +123,118 @@ defmodule Contentful.Delivery.Entries do
 
   maps a standard API response for a single entry returned, compliant with the `Contentful.Queryable` behaviour.
   """
-  def resolve_entity_response(%{
-        "fields" => fields,
-        "sys" => %{
-          "id" => id,
-          "revision" => rev,
-          "updatedAt" => updated_at,
-          "createdAt" => created_at,
-          "locale" => locale,
-          "contentType" => %{"sys" => %{"id" => content_type_id}}
+  def resolve_entity_response(
+        %{
+          "fields" => fields,
+          "sys" => %{
+            "id" => id,
+            "revision" => rev,
+            "updatedAt" => updated_at,
+            "createdAt" => created_at,
+            "locale" => locale,
+            "contentType" => %{
+              "sys" => %{
+                "id" => content_type_id
+              }
+            }
+          }
         }
-      }) do
-    {:ok,
-     %Entry{
-       fields: fields,
-       sys: %SysData{
-         id: id,
-         revision: rev,
-         locale: locale,
-         updated_at: updated_at,
-         created_at: created_at,
-         content_type: %ContentType{id: content_type_id}
-       }
-     }}
+      ) do
+    {
+      :ok,
+      %Entry{
+        fields: fields,
+        sys: %SysData{
+          id: id,
+          revision: rev,
+          locale: locale,
+          updated_at: updated_at,
+          created_at: created_at,
+          content_type: %ContentType{
+            id: content_type_id
+          }
+        }
+      }
+    }
+  end
+
+  @impl Queryable
+  @doc """
+
+  maps a standard API response for a single entry returned, coming from management API.
+  Compliant with the `Contentful.Queryable` behaviour.
+  """
+  def resolve_entity_response(
+        %{
+          "fields" => fields,
+          "sys" => %{
+            "contentType" => %{
+              "sys" => %{
+                "id" => content_type_id
+              }
+            },
+            "createdAt" => created_at,
+            "createdBy" => created_by,
+            "environment" => environment,
+            "id" => id,
+            "publishedCounter" => published_counter,
+            "space" => space,
+            "type" => type,
+            "updatedAt" => updated_at,
+            "updatedBy" => updated_by,
+            "version" => version
+          }
+        } = entity
+      ) do
+    {
+      :ok,
+      %Entry{
+        fields: fields,
+        sys: %SysData{
+          content_type: %ContentType{
+            id: content_type_id
+          },
+          created_at: created_at,
+          created_by: created_by,
+          environment: environment,
+          first_published_at: entity["sys"]["firstPublishedAt"],
+          id: id,
+          published_at: entity["sys"]["publishedAt"],
+          published_by: entity["sys"]["publishedBy"],
+          published_counter: published_counter,
+          published_version: entity["sys"]["publishedVersion"],
+          space: space,
+          type: type,
+          updated_at: updated_at,
+          updated_by: updated_by,
+          version: version
+        }
+      }
+    }
   end
 
   @spec resolve_assets(Entry.t(), list(Asset.t())) :: Entry.t()
   defp resolve_assets(%Entry{} = entry, assets) do
-    asset_ids = entry |> AssetResolver.find_linked_asset_ids()
+    asset_ids =
+      entry
+      |> AssetResolver.find_linked_asset_ids()
 
     assets_for_entry =
       assets
       |> Enum.map(&Assets.resolve_entity_response/1)
       |> Enum.map(fn {:ok, asset} -> asset end)
-      |> Enum.filter(fn %Asset{sys: %SysData{id: id}} -> asset_ids |> Enum.member?(id) end)
+      |> Enum.filter(
+           fn %Asset{
+                sys: %SysData{
+                  id: id
+                }
+              } ->
+             asset_ids
+             |> Enum.member?(id)
+           end
+         )
 
-    entry |> Map.put(:assets, assets_for_entry)
+    entry
+    |> Map.put(:assets, assets_for_entry)
   end
 end
